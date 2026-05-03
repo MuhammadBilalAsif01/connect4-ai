@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Connect 4 — AI vs Human</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090f;
+  --surface:#0e1117;
+  --surface2:#161b26;
+  --surface3:#1e2536;
+  --border:#ffffff0f;
+  --border2:#ffffff18;
+  --text:#f1f5f9;
+  --muted:#64748b;
+  --muted2:#94a3b8;
+  --red:#f43f5e;
+  --red-glow:rgba(244,63,94,0.35);
+  --red-dim:#7f1d2e;
+  --yellow:#fbbf24;
+  --yellow-glow:rgba(251,191,36,0.35);
+  --yellow-dim:#78350f;
+  --blue:#3b82f6;
+  --blue-glow:rgba(59,130,246,0.3);
+  --radius:14px;
+}
+html,body{height:100%;width:100%}
+body{
+  background:var(--bg);
+  font-family:'Inter',sans-serif;
+  color:var(--text);
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  padding:32px 16px 48px;
+  overflow-x:hidden;
+}
+
+/* Background grid */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;
+  z-index:0;
+}
+body::after{
+  content:'';
+  position:fixed;
+  top:-30%;left:50%;
+  transform:translateX(-50%);
+  width:800px;height:500px;
+  background:radial-gradient(ellipse, rgba(59,130,246,0.06) 0%, transparent 70%);
+  pointer-events:none;
+  z-index:0;
+}
+
+.wrap{position:relative;z-index:1;width:100%;max-width:600px;display:flex;flex-direction:column;align-items:center;gap:20px;}
+
+/* Header */
+.header{text-align:center;}
+.logo{
+  font-size:2.6rem;font-weight:900;
+  letter-spacing:-0.02em;
+  background:linear-gradient(135deg,#f1f5f9 0%,#94a3b8 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  line-height:1;margin-bottom:6px;
+}
+.logo span{
+  background:linear-gradient(135deg,var(--red),#fb7185);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.tagline{font-size:0.72rem;color:var(--muted);letter-spacing:0.15em;text-transform:uppercase;font-weight:500;}
+
+/* Score strip */
+.scorebar{
+  display:flex;align-items:center;gap:0;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:var(--radius);
+  overflow:hidden;
+  width:100%;
+}
+.sitem{
+  flex:1;padding:14px 0;text-align:center;
+  position:relative;
+}
+.sitem+.sitem{border-left:1px solid var(--border);}
+.sitem .slabel{font-size:0.62rem;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);margin-bottom:4px;}
+.sitem .snum{font-size:1.8rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
+.sitem.human .snum{color:var(--red);}
+.sitem.ai .snum{color:var(--yellow);}
+.sitem.draws .snum{color:var(--muted2);}
+.sitem.active-turn::after{
+  content:'';position:absolute;bottom:0;left:20%;right:20%;height:2px;
+  border-radius:2px;
+}
+.sitem.human.active-turn::after{background:var(--red);}
+.sitem.ai.active-turn::after{background:var(--yellow);}
+
+/* Status */
+.statusbox{
+  width:100%;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:var(--radius);
+  padding:14px 20px;
+  display:flex;align-items:center;gap:12px;
+  min-height:52px;
+  transition:border-color 0.3s;
+}
+.statusbox.red-turn{border-color:rgba(244,63,94,0.3);}
+.statusbox.yellow-turn{border-color:rgba(251,191,36,0.3);}
+.statusbox.win-state{border-color:rgba(255,255,255,0.2);}
+.status-icon{
+  width:32px;height:32px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;
+  transition:all 0.3s;
+}
+.status-icon.red{background:var(--red-glow);border:1.5px solid var(--red);color:var(--red);}
+.status-icon.yellow{background:var(--yellow-glow);border:1.5px solid var(--yellow);color:var(--yellow);}
+.status-icon.neutral{background:var(--surface2);border:1.5px solid var(--border2);color:var(--muted);}
+.status-text{flex:1;}
+.status-main{font-size:0.9rem;font-weight:600;color:var(--text);}
+.status-sub{font-size:0.72rem;color:var(--muted);margin-top:1px;}
+
+/* Difficulty tabs */
+.diff-row{
+  display:flex;gap:0;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:10px;
+  overflow:hidden;
+  padding:4px;
+  gap:4px;
+}
+.diff-btn{
+  font-family:'Inter',sans-serif;
+  font-size:0.78rem;font-weight:600;
+  padding:7px 18px;
+  border-radius:7px;
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  transition:all 0.15s;
+  letter-spacing:0.02em;
+}
+.diff-btn:hover{color:var(--text);}
+.diff-btn.on{background:var(--surface3);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.4);}
+.diff-btn.on.easy{color:#4ade80;}
+.diff-btn.on.medium{color:#fbbf24;}
+.diff-btn.on.hard{color:#f43f5e;}
+.new-btn{
+  font-family:'Inter',sans-serif;
+  font-size:0.78rem;font-weight:600;
+  padding:7px 18px;
+  border-radius:7px;
+  border:1px solid var(--border2);
+  background:var(--surface2);
+  color:var(--muted2);
+  cursor:pointer;
+  transition:all 0.15s;
+  margin-left:4px;
+}
+.new-btn:hover{border-color:var(--border2);color:var(--text);background:var(--surface3);}
+
+.controls-row{display:flex;align-items:center;gap:8px;}
+
+/* Board */
+.board-wrap{position:relative;width:100%;}
+
+.col-hints{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:6px;
+  padding:0 6px;
+  margin-bottom:6px;
+  height:24px;
+}
+.chint{
+  border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;
+  color:var(--red);
+  opacity:0;
+  transition:opacity 0.15s;
+  cursor:pointer;
+  letter-spacing:0.05em;
+}
+.chint.show{opacity:0.7;}
+
+.board{
+  background:linear-gradient(145deg,#0f1b2d,#0a1220);
+  border:1px solid #1e3a5f;
+  border-radius:18px;
+  padding:10px;
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:7px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04),
+    0 20px 60px rgba(0,0,0,0.7),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  width:100%;
+}
+
+.cell{
+  aspect-ratio:1;
+  border-radius:50%;
+  background:#060d18;
+  box-shadow:inset 0 3px 8px rgba(0,0,0,0.6), inset 0 1px 2px rgba(0,0,0,0.8);
+  cursor:pointer;
+  position:relative;
+  overflow:hidden;
+  transition:background 0.1s, box-shadow 0.15s;
+}
+.cell::before{
+  content:'';position:absolute;
+  top:12%;left:18%;
+  width:30%;height:22%;
+  border-radius:50%;
+  background:rgba(255,255,255,0.06);
+  pointer-events:none;
+}
+.cell.red{
+  background:radial-gradient(circle at 38% 35%, #fb7185, var(--red) 60%, #9f1239);
+  box-shadow:
+    0 0 0 1px rgba(244,63,94,0.4),
+    0 4px 16px var(--red-glow),
+    inset 0 -3px 8px rgba(0,0,0,0.3),
+    inset 0 2px 4px rgba(255,255,255,0.15);
+}
+.cell.yellow{
+  background:radial-gradient(circle at 38% 35%, #fde68a, var(--yellow) 60%, #92400e);
+  box-shadow:
+    0 0 0 1px rgba(251,191,36,0.4),
+    0 4px 16px var(--yellow-glow),
+    inset 0 -3px 8px rgba(0,0,0,0.3),
+    inset 0 2px 4px rgba(255,255,255,0.15);
+}
+.cell.hint-red{background:rgba(244,63,94,0.12);box-shadow:inset 0 3px 8px rgba(0,0,0,0.4);}
+.cell.win{animation:winpop 0.55s ease-in-out infinite alternate;}
+@keyframes winpop{
+  from{transform:scale(1);box-shadow:0 0 0 1px rgba(255,255,255,0.2),0 4px 16px rgba(255,255,255,0.1);}
+  to{transform:scale(1.06);box-shadow:0 0 0 3px rgba(255,255,255,0.7),0 0 30px rgba(255,255,255,0.3);}
+}
+.cell.drop{animation:dropanim 0.25s cubic-bezier(0.22,0.61,0.36,1);}
+@keyframes dropanim{from{transform:translateY(-360px);opacity:0.3;}to{transform:translateY(0);opacity:1;}}
+
+/* Stats */
+.statsrow{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  width:100%;
+}
+.stat{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 12px;
+  text-align:center;
+}
+.stat-label{font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:3px;}
+.stat-val{font-size:1rem;font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums;}
+
+/* Info */
+.infocard{
+  width:100%;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:16px 18px;
+}
+.infocard-title{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:8px;}
+.infocard-body{font-size:0.78rem;color:var(--muted2);line-height:1.75;}
+.infocard-body strong{color:var(--text);font-weight:600;}
+
+/* Footer */
+.footer{font-size:0.65rem;color:var(--muted);text-align:center;line-height:1.8;margin-top:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="logo">CONNECT <span>4</span></div>
+    <div class="tagline">Minimax &nbsp;·&nbsp; Alpha-Beta Pruning &nbsp;·&nbsp; AI vs Human</div>
+  </div>
+
+  <!-- Score -->
+  <div class="scorebar">
+    <div class="sitem human" id="sHuman">
+      <div class="slabel">You</div>
+      <div class="snum" id="scH">0</div>
+    </div>
+    <div class="sitem draws">
+      <div class="slabel">Draws</div>
+      <div class="snum" id="scD">0</div>
+    </div>
+    <div class="sitem ai" id="sAI">
+      <div class="slabel">AI</div>
+      <div class="snum" id="scA">0</div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="statusbox red-turn" id="statusBox">
+    <div class="status-icon red" id="statusIcon">Y</div>
+    <div class="status-text">
+      <div class="status-main" id="statusMain">Your turn</div>
+      <div class="status-sub" id="statusSub">Click any column to drop a piece</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls-row">
+    <div class="diff-row">
+      <button class="diff-btn easy"   id="bEasy"   onclick="setDiff('easy')">Easy</button>
+      <button class="diff-btn medium on" id="bMedium" onclick="setDiff('medium')">Medium</button>
+      <button class="diff-btn hard"   id="bHard"   onclick="setDiff('hard')">Hard</button>
+    </div>
+    <button class="new-btn" onclick="newGame()">New Game</button>
+  </div>
+
+  <!-- Board -->
+  <div class="board-wrap" id="boardWrap">
+    <div class="col-hints" id="colHints"></div>
+    <div class="board" id="board"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="statsrow">
+    <div class="stat"><div class="stat-label">Nodes Evaluated</div><div class="stat-val" id="stN">-</div></div>
+    <div class="stat"><div class="stat-label">Search Depth</div><div class="stat-val" id="stD">5</div></div>
+    <div class="stat"><div class="stat-label">Think Time</div><div class="stat-val" id="stT">-</div></div>
+  </div>
+
+  <!-- Info -->
+  <div class="infocard">
+    <div class="infocard-title">How the AI works</div>
+    <div class="infocard-body">
+      The AI uses <strong>Minimax</strong> to recursively explore all future game states, assuming both players play optimally.
+      <strong>Alpha-Beta pruning</strong> eliminates branches that cannot affect the outcome, cutting nodes evaluated by up to 90%.
+      A <strong>heuristic scoring function</strong> evaluates non-terminal positions based on center control, connected pieces, and opponent threats.
+      Difficulty controls look-ahead depth: Easy = 2, Medium = 5, Hard = 8.
+    </div>
+  </div>
+
+  <div class="footer">
+    CSE307 Introduction to Artificial Intelligence &nbsp;|&nbsp; IBA Karachi<br/>
+    Muhammad Bilal Asif (30627) &nbsp;·&nbsp; Moiz Lotia (31584) &nbsp;·&nbsp; Mujtaba Khan (31575)
+  </div>
+
+</div>
+<script>
+var R=6,C=7,MT=0,HU=1,AI=2;
+var DEPTH={easy:2,medium:5,hard:8};
+var g=[],over=false,busy=false,diff='medium',hov=-1;
+var sc={h:0,a:0,d:0},nodesCount=0;
+
+function makeGrid(){
+  var gr=[];
+  for(var r=0;r<R;r++){gr[r]=[];for(var c=0;c<C;c++)gr[r][c]=MT;}
+  return gr;
+}
+
+function dropPiece(grid,col,player){
+  for(var r=R-1;r>=0;r--){if(grid[r][col]===MT){grid[r][col]=player;return r;}}
+  return -1;
+}
+
+function undrop(grid,col){
+  for(var r=0;r<R;r++){if(grid[r][col]!==MT){grid[r][col]=MT;return;}}
+}
+
+function validCols(grid){
+  var v=[];for(var c=0;c<C;c++)if(grid[0][c]===MT)v.push(c);return v;
+}
+
+function boardFull(grid){
+  for(var c=0;c<C;c++)if(grid[0][c]===MT)return false;return true;
+}
+
+function checkWin(grid,p){
+  var r,c;
+  for(r=0;r<R;r++)for(c=0;c<=C-4;c++)
+    if(grid[r][c]===p&&grid[r][c+1]===p&&grid[r][c+2]===p&&grid[r][c+3]===p)
+      return[[r,c],[r,c+1],[r,c+2],[r,c+3]];
+  for(r=0;r<=R-4;r++)for(c=0;c<C;c++)
+    if(grid[r][c]===p&&grid[r+1][c]===p&&grid[r+2][c]===p&&grid[r+3][c]===p)
+      return[[r,c],[r+1,c],[r+2,c],[r+3,c]];
+  for(r=0;r<=R-4;r++)for(c=0;c<=C-4;c++)
+    if(grid[r][c]===p&&grid[r+1][c+1]===p&&grid[r+2][c+2]===p&&grid[r+3][c+3]===p)
+      return[[r,c],[r+1,c+1],[r+2,c+2],[r+3,c+3]];
+  for(r=3;r<R;r++)for(c=0;c<=C-4;c++)
+    if(grid[r][c]===p&&grid[r-1][c+1]===p&&grid[r-2][c+2]===p&&grid[r-3][c+3]===p)
+      return[[r,c],[r-1,c+1],[r-2,c+2],[r-3,c+3]];
+  return null;
+}
+
+function scoreWindow(w,p){
+  var opp=(p===AI)?HU:AI,pc=0,ec=0,oc=0;
+  for(var i=0;i<4;i++){if(w[i]===p)pc++;else if(w[i]===MT)ec++;else oc++;}
+  if(pc===4)return 100;
+  if(pc===3&&ec===1)return 8;
+  if(pc===2&&ec===2)return 3;
+  if(oc===3&&ec===1)return -7;
+  return 0;
+}
+
+function scoreGrid(grid,p){
+  var s=0,r,c;
+  for(r=0;r<R;r++)if(grid[r][3]===p)s+=3;
+  for(r=0;r<R;r++)for(c=0;c<=C-4;c++)s+=scoreWindow([grid[r][c],grid[r][c+1],grid[r][c+2],grid[r][c+3]],p);
+  for(r=0;r<=R-4;r++)for(c=0;c<C;c++)s+=scoreWindow([grid[r][c],grid[r+1][c],grid[r+2][c],grid[r+3][c]],p);
+  for(r=0;r<=R-4;r++)for(c=0;c<=C-4;c++)s+=scoreWindow([grid[r][c],grid[r+1][c+1],grid[r+2][c+2],grid[r+3][c+3]],p);
+  for(r=3;r<R;r++)for(c=0;c<=C-4;c++)s+=scoreWindow([grid[r][c],grid[r-1][c+1],grid[r-2][c+2],grid[r-3][c+3]],p);
+  return s;
+}
+
+function minimax(grid,depth,alpha,beta,maxing){
+  nodesCount++;
+  var vc=validCols(grid);
+  var wA=checkWin(grid,AI),wH=checkWin(grid,HU);
+  if(wA)return{s:1000000+depth,col:-1};
+  if(wH)return{s:-(1000000+depth),col:-1};
+  if(boardFull(grid)||vc.length===0)return{s:0,col:-1};
+  if(depth===0)return{s:scoreGrid(grid,AI)-scoreGrid(grid,HU),col:-1};
+  var order=[3,2,4,1,5,0,6].filter(function(x){return vc.indexOf(x)!==-1;});
+  var i,c,res;
+  if(maxing){
+    var best={s:-Infinity,col:order[0]};
+    for(i=0;i<order.length;i++){
+      c=order[i];dropPiece(grid,c,AI);
+      res=minimax(grid,depth-1,alpha,beta,false);
+      undrop(grid,c);
+      if(res.s>best.s){best.s=res.s;best.col=c;}
+      if(res.s>alpha)alpha=res.s;
+      if(alpha>=beta)break;
+    }
+    return best;
+  }else{
+    var best2={s:Infinity,col:order[0]};
+    for(i=0;i<order.length;i++){
+      c=order[i];dropPiece(grid,c,HU);
+      res=minimax(grid,depth-1,alpha,beta,true);
+      undrop(grid,c);
+      if(res.s<best2.s){best2.s=res.s;best2.col=c;}
+      if(res.s<beta)beta=res.s;
+      if(alpha>=beta)break;
+    }
+    return best2;
+  }
+}
+
+function render(){
+  // hints row
+  var ch=document.getElementById('colHints');
+  ch.innerHTML='';
+  for(var c=0;c<C;c++){
+    var h=document.createElement('div');
+    h.className='chint'+(hov===c&&!over&&!busy?' show':'');
+    h.textContent='v';
+    h.setAttribute('data-col',c);
+    ch.appendChild(h);
+  }
+  // board
+  var bd=document.getElementById('board');
+  bd.innerHTML='';
+  for(var r=0;r<R;r++){
+    for(c=0;c<C;c++){
+      var cell=document.createElement('div');
+      var v=g[r][c];
+      var cls='cell';
+      if(v===HU)cls+=' red';
+      else if(v===AI)cls+=' yellow';
+      else if(hov===c&&!over&&!busy)cls+=' hint-red';
+      cell.className=cls;
+      cell.setAttribute('data-col',c);
+      bd.appendChild(cell);
+    }
+  }
+  // turn indicator
+  var sH=document.getElementById('sHuman');
+  var sA=document.getElementById('sAI');
+  sH.classList.remove('active-turn');
+  sA.classList.remove('active-turn');
+  if(!over&&!busy){if(true)sH.classList.add('active-turn');}
+  if(busy)sA.classList.add('active-turn');
+}
+
+function triggerFall(row,col){
+  var cells=document.getElementById('board').children;
+  var idx=row*C+col;
+  if(!cells[idx])return;
+  cells[idx].classList.remove('drop');
+  void cells[idx].offsetWidth;
+  cells[idx].classList.add('drop');
+}
+
+function triggerWin(cells){
+  var bd=document.getElementById('board').children;
+  for(var i=0;i<cells.length;i++){
+    var el=bd[cells[i][0]*C+cells[i][1]];
+    if(el)el.classList.add('win');
+  }
+}
+
+function setStatus(iconCls,iconTxt,boxCls,main,sub){
+  document.getElementById('statusIcon').className='status-icon '+iconCls;
+  document.getElementById('statusIcon').textContent=iconTxt;
+  document.getElementById('statusBox').className='statusbox '+boxCls;
+  document.getElementById('statusMain').textContent=main;
+  document.getElementById('statusSub').textContent=sub;
+}
+
+function newGame(){
+  g=makeGrid();over=false;busy=false;hov=-1;nodesCount=0;
+  document.getElementById('stN').textContent='-';
+  document.getElementById('stT').textContent='-';
+  setStatus('red','Y','red-turn','Your turn','Click any column to drop a piece');
+  render();
+}
+
+function setDiff(d){
+  diff=d;
+  document.getElementById('bEasy').className='diff-btn easy'+(d==='easy'?' on':'');
+  document.getElementById('bMedium').className='diff-btn medium'+(d==='medium'?' on':'');
+  document.getElementById('bHard').className='diff-btn hard'+(d==='hard'?' on':'');
+  document.getElementById('stD').textContent=DEPTH[d];
+  newGame();
+}
+
+function humanPlay(col){
+  if(over||busy)return;
+  if(g[0][col]!==MT)return;
+  var row=dropPiece(g,col,HU);
+  render();triggerFall(row,col);
+  var win=checkWin(g,HU);
+  if(win){
+    over=true;sc.h++;
+    document.getElementById('scH').textContent=sc.h;
+    setStatus('red','Y','win-state','You win!','Congratulations  great game');
+    setTimeout(function(){triggerWin(win);},50);
+    return;
+  }
+  if(boardFull(g)){
+    over=true;sc.d++;
+    document.getElementById('scD').textContent=sc.d;
+    setStatus('neutral','=','','Draw!','Neither player wins this round');
+    return;
+  }
+  busy=true;
+  setStatus('yellow','A','yellow-turn','AI is thinking...','Evaluating the game tree');
+  render();
+  setTimeout(runAI,80);
+}
+
+function runAI(){
+  var depth=DEPTH[diff];
+  nodesCount=0;
+  var t0=Date.now();
+  var result=minimax(g,depth,-Infinity,Infinity,true);
+  var ms=Date.now()-t0;
+  var col=result.col;
+  var row=dropPiece(g,col,AI);
+  document.getElementById('stN').textContent=nodesCount.toLocaleString();
+  document.getElementById('stT').textContent=ms+'ms';
+  render();triggerFall(row,col);
+  var win=checkWin(g,AI);
+  if(win){
+    over=true;sc.a++;busy=false;
+    document.getElementById('scA').textContent=sc.a;
+    setStatus('yellow','A','win-state','AI wins!','Better luck next time');
+    setTimeout(function(){triggerWin(win);},50);
+    return;
+  }
+  if(boardFull(g)){
+    over=true;sc.d++;busy=false;
+    document.getElementById('scD').textContent=sc.d;
+    setStatus('neutral','=','','Draw!','Neither player wins this round');
+    return;
+  }
+  busy=false;
+  setStatus('red','Y','red-turn','Your turn','Click any column to drop a piece');
+  render();
+}
+
+// Single delegated event listeners
+document.getElementById('boardWrap').addEventListener('mousemove',function(e){
+  if(over||busy)return;
+  var bd=document.getElementById('board');
+  var rect=bd.getBoundingClientRect();
+  var x=e.clientX-rect.left;
+  if(x<0||x>rect.width){if(hov!==-1){hov=-1;render();}return;}
+  var col=Math.floor(x/(rect.width/C));
+  col=Math.max(0,Math.min(C-1,col));
+  if(col!==hov){hov=col;render();}
+});
+
+document.getElementById('boardWrap').addEventListener('mouseleave',function(){
+  if(hov!==-1){hov=-1;render();}
+});
+
+document.getElementById('boardWrap').addEventListener('click',function(e){
+  if(over||busy)return;
+  var bd=document.getElementById('board');
+  var rect=bd.getBoundingClientRect();
+  var x=e.clientX-rect.left;
+  if(x<0||x>rect.width)return;
+  var col=Math.floor(x/(rect.width/C));
+  col=Math.max(0,Math.min(C-1,col));
+  humanPlay(col);
+});
+
+newGame();
+</script>
+</body>
+</html>
