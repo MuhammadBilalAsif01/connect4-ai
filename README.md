@@ -4,7 +4,7 @@ A fully playable Connect 4 game with an AI opponent built from scratch using the
 
 Built for **CSE307 — Introduction to Artificial Intelligence** at IBA Karachi.
 
-🎮 **[Play the live demo here](https://yourusername.github.io/connect4-ai)**
+🎮 **[Play the live demo here](https://MUHAMMADBILALASIF01.github.io/connect4-ai)**
 
 ---
 
